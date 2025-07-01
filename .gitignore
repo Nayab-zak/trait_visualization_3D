@@ -1,0 +1,44 @@
+node_modules
+# Build output
+dist/
+coverage/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+.env
+*.local
+
+# Video and large files
+*.mp4
+*.avi
+*.mov
+*.webm
+
+# Ignore lock files if not needed
+package-lock.json
+yarn.lock
+
+# Ignore test output
+*.test.js
+*.test.ts
+
+# Ignore generated types
+*.d.ts
+
+# Ignore webpack cache
+.cache/
+
+# Ignore rollup cache
+.rollup.cache/
