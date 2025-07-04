@@ -5,7 +5,6 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { PhysicsService } from './PhysicsService';
 import { Node } from './node.interface';
-import { centralNode, outerNodes } from './mock-data';
 
 export function initThreeScene(container: HTMLElement) {
   // Scene
@@ -69,8 +68,9 @@ export function initThreeScene(container: HTMLElement) {
   // --- Node setup ---
   // Central node (not moved, but included for compatibility calc)
   const nodeCentral: Node = {
-    id: centralNode.id || 'central',
-    attributes: centralNode.preferences,
+    id: 'central',
+    traits: {}, // For compatibility, use preferences as traits for central
+    preferences: {},
     velocity: new THREE.Vector3(),
     mesh: undefined,
   };
@@ -82,7 +82,7 @@ export function initThreeScene(container: HTMLElement) {
   const arrowHelpers: THREE.ArrowHelper[] = [];
   // Assign mesh refs to node objects
   nodeCentral.mesh = spheres[0];
-  nodeObjects = outerNodes.map((n, i) => {
+  nodeObjects = Array.from({ length: 4 }, (_, i) => {
     // Create an arrow for each node
     const arrow = new THREE.ArrowHelper(
       new THREE.Vector3(1, 0, 0), // initial direction
@@ -94,7 +94,7 @@ export function initThreeScene(container: HTMLElement) {
     );
     scene.add(arrow);
     arrowHelpers.push(arrow);
-    return { ...n, mesh: spheres[i + 1] };
+    return { id: `node-${i + 1}`, traits: {}, preferences: {}, velocity: new THREE.Vector3(), mesh: spheres[i + 1] };
   });
 
   // Position outer nodes evenly around a circle in the XZ plane
@@ -241,7 +241,12 @@ export function enableNodeHoverTooltips(renderer: THREE.WebGLRenderer, camera: T
     tooltipEl.style.textShadow = '0 2px 8px #c300ff, 0 1px 2px #000';
     tooltipEl.style.transition = 'opacity 0.2s';
     tooltipEl.style.opacity = '0.98';
-    tooltipEl.innerHTML = `<div style="margin-bottom:6px;">${node.id}</div><div style="font-size:0.98em;font-weight:400;color:#fff;">${node.attributes.map((v, i) => `Attr ${i + 1}: <b>${v}</b>`).join('<br>')}</div>`;
+    tooltipEl.innerHTML = `
+      <div style="margin-bottom:6px;">${node.id}</div>
+      <div style="font-size:0.98em;font-weight:400;color:#fff;">
+        <div style="margin-bottom:4px;"><span style="color:#c300ff;font-weight:600;">Traits:</span><br>${Object.entries(node.traits).map(([k, v]) => `${k}: <b>${v}</b>`).join('<br>')}</div>
+        <div><span style="color:#00ffff;font-weight:600;">Preferences:</span><br>${Object.entries(node.preferences).map(([k, v]) => `${k}: <b>${v}</b>`).join('<br>')}</div>
+      </div>`;
     document.body.appendChild(tooltipEl);
   }
 

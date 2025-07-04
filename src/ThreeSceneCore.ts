@@ -7,7 +7,6 @@ import { PhysicsService } from './PhysicsService';
 import { DEBUG_FORCES } from './ThreeScene';
 import { PerformanceService } from './PerformanceService';
 import { Node } from './node.interface';
-import { centralNode, outerNodes } from './mock-data';
 
 export function initThreeScene(container: HTMLElement, mode: 'night' | 'day' = 'night') {
   const scene = new THREE.Scene();
@@ -109,9 +108,14 @@ function createGlowMaterial(color: string) {
   });
 }
 
-// Utility to generate random attributes
-function randomAttributes(count: number): number[] {
-  return Array.from({ length: count }, () => Math.round(Math.random() * 100));
+// Utility to generate random traits
+function randomTraits(count: number): { [key: string]: number } {
+  const keys = ['attrOne', 'attrTwo', 'attrThree', 'attrFour', 'attrFive', 'attrSix'];
+  const obj: { [key: string]: number } = {};
+  for (let i = 0; i < count; i++) {
+    obj[keys[i] || `attr${i}`] = Math.round(Math.random() * 100);
+  }
+  return obj;
 }
 
 // Returns both spheres and node data
@@ -124,10 +128,10 @@ export function addCentralAndOuterNodes(
   nodeColor: string = '#FF3366',
   centralColor: string = '#C300FF',
   centralNodeIndex: number = 0,
-  randomNodeDistribution: boolean = true // <-- add this param
-): { spheres: THREE.Mesh[]; nodes: { id: string; attributes: number[]; velocity: THREE.Vector3; mesh?: THREE.Mesh }[] } {
+  randomNodeDistribution: boolean = true
+): { spheres: THREE.Mesh[]; nodes: Node[] } {
   const spheres: THREE.Mesh[] = [];
-  const nodes: { id: string; attributes: number[]; velocity: THREE.Vector3; mesh?: THREE.Mesh }[] = [];
+  const nodes: Node[] = [];
   // Central node: color/size depends on centralNodeIndex
   for (let i = 0; i < outerCount + 1; i++) {
     const isCentral = i === centralNodeIndex;
@@ -141,7 +145,8 @@ export function addCentralAndOuterNodes(
     spheres.push(sphere);
     nodes.push({
       id: i === 0 ? 'central' : String.fromCharCode(65 + i - 1),
-      attributes: randomAttributes(attributeCount),
+      traits: randomTraits(attributeCount),
+      preferences: randomTraits(attributeCount),
       velocity: new THREE.Vector3(),
       mesh: sphere
     });
@@ -205,18 +210,31 @@ export function startPhysicsAnimation(
   controls: OrbitControls,
   composer: EffectComposer,
   spheres: THREE.Mesh[],
-  nodes: { id: string; attributes: number[]; velocity: THREE.Vector3; mesh?: THREE.Mesh }[],
+  nodes: Node[],
   k: number,
   kRep: number,
   centralNodeIndex: number,
   angularSpeed: number = 0.5,
   dragState?: { isCentralDragging: boolean; outerNodeOffsets: THREE.Vector3[] },
-  debugForces: boolean = false // <-- add this param
+  debugForces: boolean = false,
+  showSprings: boolean = false
 ) {
-  // Central node selection
-  const nodeCentral = nodes[centralNodeIndex] || nodes[0];
-  // Outer nodes: all except the central
-  const nodeObjects = nodes.filter((_, i) => i !== centralNodeIndex);
+  // --- Spring lines between central and outer nodes ---
+  const springLines: { [nodeId: string]: THREE.Line } = {};
+  const nodeCentral: Node = nodes[centralNodeIndex];
+  const nodeObjects: Node[] = nodes.filter((_, i) => i !== centralNodeIndex);
+  // Create a line for each outer node
+  nodeObjects.forEach((node) => {
+    if (node.mesh && nodeCentral.mesh) {
+      const points = [nodeCentral.mesh.position.clone(), node.mesh.position.clone()];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({ color: 0x00ffcc, linewidth: 2 });
+      const line = new THREE.Line(geometry, material);
+      scene.add(line);
+      springLines[node.id] = line;
+    }
+  });
+
   // Velocity arrows (direction arrows)
   const arrowHelpers: THREE.ArrowHelper[] = [];
   nodeObjects.forEach((node, i) => {
@@ -267,16 +285,6 @@ export function startPhysicsAnimation(
         const restLength = 40; // same as initial orbit radius
         const springForce = toCenter.normalize().multiplyScalar(constants.k * (dist - restLength));
         force.add(springForce);
-        // --- (Optional) Attribute-based force (additive, can be removed if not needed) ---
-        /*
-        if (nodeCentral.attributes) {
-          for (let j = 0; j < node.attributes.length; j++) {
-            const diff = nodeCentral.attributes[j] - node.attributes[j];
-            const f = constants.k * diff / (Math.pow(diff, 2) + 1);
-            force.addScalar(f);
-          }
-        }
-        */
         // Repulsion from nearby nodes only (using spatial grid)
         const neighbors = perfService.getNeighbors({ position: node.mesh ? node.mesh.position : new THREE.Vector3() });
         neighbors.forEach(other => {
@@ -320,6 +328,28 @@ export function startPhysicsAnimation(
         }
       }
     });
+    // --- Update spring lines ---
+    nodeObjects.forEach((node) => {
+      if (node.mesh && nodeCentral.mesh && springLines[node.id]) {
+        // Update line geometry
+        const positions = [nodeCentral.mesh.position.clone(), node.mesh.position.clone()];
+        springLines[node.id].geometry.setFromPoints(positions);
+        // Optionally, modulate line color/emissive by spring force magnitude
+        const compatibility = PhysicsService.calculateCompatibility(nodeCentral.preferences, node.traits);
+        const springK = k * 1.3 * (0.2 + 0.8 * compatibility); // match forceScale
+        const restLength = 40;
+        const forceVec = PhysicsService.calculateSpringForce(nodeCentral.mesh.position, node.mesh.position, springK, restLength);
+        const mag = Math.min(forceVec.length(), 60);
+        const color = new THREE.Color().lerpColors(
+          new THREE.Color(0x00ffcc),
+          new THREE.Color(0xff00ff),
+          mag / 60
+        );
+        (springLines[node.id].material as THREE.LineBasicMaterial).color = color;
+        // Set line visibility based on showSprings
+        springLines[node.id].visible = !!showSprings;
+      }
+    });
     // --- Debug force visualization ---
     if (debugForces) {
       // Remove old arrows
@@ -355,6 +385,11 @@ export function startPhysicsAnimation(
       forceArrows = [];
     }
     composer.render();
+  }
+  // Debug: Log mesh status before animation starts
+  console.log('DEBUG: nodeObjects mesh status', nodeObjects.map((n, i) => ({i, id: n.id, mesh: n.mesh, hasMesh: !!n.mesh})));
+  if (nodeObjects.some(n => !n.mesh)) {
+    console.error('ERROR: At least one node in nodeObjects is missing a mesh!', nodeObjects);
   }
   animate();
 }

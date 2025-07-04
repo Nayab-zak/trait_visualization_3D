@@ -43,9 +43,11 @@
     "eslint": "^8.0.0",
     "eslint-plugin-react": "^7.0.0",
     "html-webpack-plugin": "^5.6.3",
+    "jest": "^30.0.4",
     "rollup": "^4.44.1",
     "rollup-plugin-dts": "^6.2.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
+    "ts-jest": "^29.4.0",
     "ts-loader": "^9.0.0",
     "typescript": "^5.0.0",
     "webpack": "^5.0.0",
@@ -62,6 +64,7 @@
     "build": "webpack --mode production",
     "build:lib": "rollup -c",
     "type-check": "tsc --noEmit",
-    "lint": "eslint 'src/**/*.{ts,tsx}'"
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
+    "test": "jest --passWithNoTests"
   }
 }

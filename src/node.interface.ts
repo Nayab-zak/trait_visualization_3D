@@ -2,7 +2,8 @@ import * as THREE from 'three';
 
 export interface Node {
   id: string;
-  attributes: number[];
+  traits: { [key: string]: number };
+  preferences: { [key: string]: number };
   velocity: THREE.Vector3;
   mesh?: THREE.Mesh;
 }

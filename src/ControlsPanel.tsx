@@ -11,6 +11,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+// Remove the import for NodeSliders if it's in the same file
+// import { NodeSliders } from './ControlsPanel';
+
 interface ControlsPanelProps {
   nodeOptions: { label: string; value: number }[];
   centralNodeIndex: number;
@@ -40,13 +43,20 @@ interface ControlsPanelProps {
   lockState: boolean;
   onResetCamera: () => void;
   mode?: 'night' | 'day';
+  setMode?: (mode: 'night' | 'day') => void;
   randomNodeDistribution: boolean;
   setRandomNodeDistribution: (v: boolean) => void;
   debugForces: boolean;
   setDebugForces: (v: boolean) => void;
+  showSprings: boolean;
+  setShowSprings: (v: boolean) => void;
 }
 
-export const ControlsPanel: React.FC<ControlsPanelProps> = ({
+export const ControlsPanel: React.FC<ControlsPanelProps & {
+  nodes?: any[]; // Array of node objects with traits/preferences
+  selectedNodeIndex?: number;
+  setNodes?: (nodes: any[]) => void;
+}> = ({
   nodeOptions,
   centralNodeIndex,
   setCentralNodeIndex,
@@ -75,11 +85,19 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
   lockState,
   onResetCamera,
   mode = 'night',
+  setMode,
   randomNodeDistribution,
   setRandomNodeDistribution,
   debugForces,
   setDebugForces,
+  nodes = [],
+  selectedNodeIndex = 0,
+  setNodes = () => {},
+  showSprings = false,
+  setShowSprings = () => {},
 }) => {
+  const [minimized, setMinimized] = useState(false);
+
   const panelBg = mode === 'night' ? '#23203a' : '#fff';
   const panelText = mode === 'night' ? '#fff' : '#23203a';
 
@@ -110,33 +128,121 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     marginLeft: 4, fontWeight: 600, color: '#c300ff', fontSize: '0.97em',
   };
 
+  // Handler for NodeSliders
+  const handleNodeSliderChange = (field: 'traits' | 'preferences', key: string, value: number) => {
+    if (!nodes[selectedNodeIndex]) return;
+    const updatedNodes = nodes.map((node, idx) =>
+      idx === selectedNodeIndex
+        ? { ...node, [field]: { ...node[field], [key]: value }, mesh: node.mesh }
+        : node
+    );
+    setNodes(updatedNodes);
+  };
+
+  if (minimized) {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 32,
+          right: 32,
+          zIndex: 10002,
+          background: mode === 'night' ? 'rgba(35,32,58,0.92)' : 'rgba(255,255,255,0.95)',
+          borderRadius: 16,
+          boxShadow: mode === 'night' ? '0 2px 16px #c300ff33, 0 1.5px 8px #0008' : '0 2px 16px #c300ff22, 0 1.5px 8px #0002',
+          border: '2px solid #c300ff55',
+          padding: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+        onClick={() => setMinimized(false)}
+        title="Expand control panel"
+      >
+        <span style={{ fontSize: 22, color: '#c300ff', fontWeight: 700 }}>☰</span>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
-        background: mode === 'night' ? 'rgba(35,32,58,0.7)' : 'rgba(255,255,255,0.85)',
+        background: mode === 'night' ? 'rgba(35,32,58,0.92)' : 'rgba(255,255,255,0.95)',
         color: panelText,
         borderRadius: 16,
         boxShadow: mode === 'night' ? '0 2px 16px #c300ff33, 0 1.5px 8px #0008' : '0 2px 16px #c300ff22, 0 1.5px 8px #0002',
-        padding: 16,
+        padding: 12,
         position: 'fixed',
-        bottom: 24,
-        right: 24,
+        top: 32,
+        right: 32,
         zIndex: 10002,
-        minWidth: 200,
-        maxWidth: 260,
+        minWidth: 220,
+        maxWidth: 320,
+        maxHeight: '90vh',
         minHeight: 'unset',
-        maxHeight: '80vh',
         display: 'flex',
         flexDirection: 'column',
-        gap: 10,
-        border: '1.5px solid #c300ff33',
+        gap: 8,
+        border: '2px solid #c300ff55',
         transition: 'background 0.3s, color 0.3s',
         opacity: 0.98,
-        backdropFilter: 'blur(4px)',
-        overflow: 'auto',
+        backdropFilter: 'blur(6px)',
+        overflowY: 'auto',
+        overflowX: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+      {/* Header always at the top */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: '1.1em' }}>Controls</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setMinimized(true)}
+            style={{
+              background: '#fff',
+              border: '2px solid #c300ff',
+              color: '#c300ff',
+              fontSize: 24,
+              cursor: 'pointer',
+              borderRadius: '50%',
+              width: 36,
+              height: 36,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 4,
+              transition: 'background 0.2s, border 0.2s',
+            }}
+            title="Minimize control panel"
+            onMouseOver={e => (e.currentTarget.style.background = '#f3e8ff')}
+            onMouseOut={e => (e.currentTarget.style.background = '#fff')}
+          >
+            <span style={{ fontWeight: 700, fontSize: 22, lineHeight: 1 }}>&#x25B2;</span>
+          </button>
+          <button
+            onClick={() => setMode && setMode(mode === 'night' ? 'day' : 'night')}
+            style={{
+              background: mode === 'night' ? '#181c2a' : '#fff',
+              color: mode === 'night' ? '#fff' : '#181c2a',
+              border: '2px solid #c300ff',
+              borderRadius: 8,
+              width: 36,
+              height: 36,
+              fontSize: '1.2em',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px #c300ff44',
+              marginLeft: 8
+            }}
+            title={mode === 'night' ? 'Switch to Day Mode' : 'Switch to Night Mode'}
+          >
+            {mode === 'night' ? '🌙' : '☀️'}
+          </button>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
         {/* Central Node Selection */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <label style={{ fontWeight: 600 }}>Central Node</label>
@@ -165,7 +271,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
           <input type="number" min={1} max={20} value={nodeCount} onChange={e => setNodeCount(Number(e.target.value))} style={panelNumberStyle} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <label style={{ fontWeight: 600 }}>Attributes</label>
+          <label style={{ fontWeight: 600 }}>Traits (per node)</label>
           <input type="number" min={1} max={6} value={attributeCount} onChange={e => setAttributeCount(Number(e.target.value))} style={panelNumberStyle} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -265,6 +371,29 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
             {debugForces ? 'On' : 'Off'}
           </button>
         </div>
+        {/* Spring Connections Toggle */}
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ fontWeight: 600, color: '#ff00ff', fontSize: '0.97em' }}>
+            Show Spring Connections:
+          </label>
+          <button
+            onClick={() => setShowSprings(!showSprings)}
+            style={{
+              background: showSprings ? '#ff00ff' : '#23203a',
+              color: showSprings ? '#fff' : '#ff00ff',
+              border: '2px solid #ff00ff',
+              borderRadius: 8,
+              padding: '4px 10px',
+              fontWeight: 'bold',
+              fontSize: '0.97em',
+              marginLeft: 8,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            {showSprings ? 'On' : 'Off'}
+          </button>
+        </div>
       </div>
       {/* Camera Controls - compact row */}
       <div style={{
@@ -286,94 +415,55 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
         <button style={iconBtnStyle} onClick={onResetCamera} title="Reset Camera"><RefreshCw size={18} /></button>
         <button style={iconBtnStyle} onClick={onLockToggle} title={lockState ? 'Unlock Camera' : 'Lock Camera'}>{lockState ? <Unlock size={18} /> : <Lock size={18} />}</button>
       </div>
+      {/* NodeSliders for selected node */}
+      {nodes[selectedNodeIndex] && (
+        // Change 'export const NodeSliders' to 'const NodeSliders' to avoid export conflict
+        <NodeSliders
+          node={nodes[selectedNodeIndex]}
+          onChange={handleNodeSliderChange}
+        />
+      )}
     </div>
   );
 };
 
 // --- Helper Components ---
 
-type ControlSliderProps = {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  onChange: (value: number) => void;
-  accent: string;
-};
-
-const ControlSlider: React.FC<ControlSliderProps> = ({ label, value, min, max, step = 1, onChange, accent }) => (
-  <label className="flex flex-col gap-1 text-sm font-medium text-[#fff]">
-    <span className="mb-1">{label}</span>
-    <input
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      value={value}
-      onChange={e => onChange(Number(e.target.value))}
-      className="w-full accent-[#FF3366] h-2 rounded-lg"
-      style={{
-        accentColor: accent,
-        background: "#23203a",
-      }}
-    />
-    <span className="text-xs text-[#C300FF] font-semibold mt-1">{value}</span>
-  </label>
-);
-
-type ControlNumberProps = {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-};
-
-const ControlNumber: React.FC<ControlNumberProps> = ({ label, value, min, max, onChange }) => (
-  <label className="flex flex-col gap-1 text-sm font-medium text-[#fff]">
-    <span className="mb-1">{label}</span>
-    <input
-      type="number"
-      min={min}
-      max={max}
-      value={value}
-      onChange={e => onChange(Number(e.target.value))}
-      className="w-full rounded-md px-2 py-1 bg-[#23203a] border border-[#C300FF] text-[#C300FF] font-medium"
-    />
-  </label>
-);
-
-type ControlColorProps = {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-};
-
-const ControlColor: React.FC<ControlColorProps> = ({ label, value, onChange }) => (
-  <label className="flex flex-col gap-1 text-sm font-medium text-[#fff]">
-    <span className="mb-1">{label}</span>
-    <input
-      type="color"
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      className="w-10 h-8 rounded-md border-2 border-[#C300FF] bg-[#23203a] p-0"
-      style={{ boxShadow: "0 0 8px #C300FF55" }}
-    />
-  </label>
-);
-
-type IconButtonProps = {
-  onClick: () => void;
-  icon: React.ReactNode;
-};
-
-const IconButton: React.FC<IconButtonProps> = ({ onClick, icon }) => (
-  <button
-    onClick={onClick}
-    className="w-10 h-10 flex items-center justify-center rounded-full border-2 border-[#C300FF] bg-[#23203a] hover:shadow-[0_0_12px_2px_#C300FF99] transition-shadow duration-150"
-    style={{ color: "#C300FF" }}
-  >
-    {icon}
-  </button>
+// NodeSliders: Dynamic sliders for traits and preferences
+const NodeSliders: React.FC<{
+  node: { traits: { [key: string]: number }; preferences: { [key: string]: number } };
+  onChange: (field: 'traits' | 'preferences', key: string, value: number) => void;
+}> = ({ node, onChange }) => (
+  <div style={{ marginTop: 16, marginBottom: 16 }}>
+    <h3 style={{ color: '#C300FF', marginBottom: 8 }}>Traits</h3>
+    {Object.keys(node.traits).map(key => (
+      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <label style={{ minWidth: 80 }}>{key}</label>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={node.traits[key]}
+          onChange={e => onChange('traits', key, Number(e.target.value))}
+          style={{ flex: 1, accentColor: '#60a5fa' }}
+        />
+        <span style={{ minWidth: 32, color: '#60a5fa' }}>{node.traits[key]}</span>
+      </div>
+    ))}
+    <h3 style={{ color: '#C300FF', margin: '12px 0 8px 0' }}>Preferences</h3>
+    {Object.keys(node.preferences).map(key => (
+      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <label style={{ minWidth: 80 }}>{key}</label>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={node.preferences[key]}
+          onChange={e => onChange('preferences', key, Number(e.target.value))}
+          style={{ flex: 1, accentColor: '#c084fc' }}
+        />
+        <span style={{ minWidth: 32, color: '#c084fc' }}>{node.preferences[key]}</span>
+      </div>
+    ))}
+  </div>
 );

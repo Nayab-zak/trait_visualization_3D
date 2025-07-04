@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { initThreeScene, addCentralAndOuterNodes, startPhysicsAnimation } from './ThreeSceneCore';
+import { initThreeScene, startPhysicsAnimation, addCentralAndOuterNodes } from './ThreeSceneCore';
 import { enableNodeHoverTooltips } from './ThreeSceneUtils';
 import { FaSearchPlus, FaSearchMinus, FaArrowLeft, FaArrowRight, FaArrowUp, FaArrowDown } from 'react-icons/fa';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { ControlsPanel } from './ControlsPanel';
+import { nodeData } from './node-mock-data'; // <-- Import mock data
 
 const ThreeScene: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -15,8 +16,8 @@ const ThreeScene: React.FC = () => {
   const [lockState, setLockState] = useState(false);
 
   // --- Control panel state ---
-  const [nodeCount, setNodeCount] = useState(20);
-  const [attributeCount, setAttributeCount] = useState(3);
+  const [nodeCount, setNodeCount] = useState(nodeData.length - 1); // Use mock data length
+  const [attributeCount, setAttributeCount] = useState(Object.keys(nodeData[0].traits).length);
   const [k, setK] = useState(0.7);
   const [kRep, setKRep] = useState(0.3);
   const [centralNodeIndex, setCentralNodeIndex] = useState(0); // 0 = default central
@@ -28,6 +29,7 @@ const ThreeScene: React.FC = () => {
   const [resetKey, setResetKey] = useState(0); // for explicit reset
   const [randomNodeDistribution, setRandomNodeDistribution] = useState(true);
   const [debugForces, setDebugForces] = useState(false);
+  const [showSprings, setShowSprings] = useState(false); // <-- New state for spring visibility
 
   // Generate node options for dropdown (after nodes are created)
   const nodeOptions = Array.from({ length: nodeCount + 1 }, (_, i) => ({
@@ -38,7 +40,8 @@ const ThreeScene: React.FC = () => {
   // --- Scene/Node refs for seamless updates ---
   const sceneRef = useRef<THREE.Scene | null>(null);
   const spheresRef = useRef<THREE.Mesh[]>([]);
-  const nodesRef = useRef<{ id: string; attributes: number[]; velocity: THREE.Vector3; mesh?: THREE.Mesh }[]>([]);
+  const [nodes, setNodes] = useState<any[]>(nodeData); // Use mock data as initial state
+  const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
   const composerRef = useRef<any>(null);
   const dragControlsRef = useRef<any>(null);
 
@@ -76,7 +79,9 @@ const ThreeScene: React.FC = () => {
       camera.up.set(0, 1, 0); // Ensure Y is up
       camera.lookAt(controls.target); // Ensure camera is oriented correctly
       controls.update();
-      const result = addCentralAndOuterNodes(
+
+      // --- Generate spheres and nodes with mesh assigned ---
+      const { spheres, nodes: meshAssignedNodes } = addCentralAndOuterNodes(
         scene,
         centralSize,
         nodeSize,
@@ -87,15 +92,19 @@ const ThreeScene: React.FC = () => {
         centralNodeIndex,
         randomNodeDistribution
       );
-      spheresRef.current = result.spheres;
-      nodesRef.current = result.nodes;
-      enableNodeHoverTooltips(renderer, camera, nodesRef.current);
+      spheresRef.current = spheres;
+      setNodes(meshAssignedNodes);
+
+      // Now call the tooltip function with the correct nodes
+      enableNodeHoverTooltips(renderer, camera, meshAssignedNodes);
+
       startPhysicsAnimation(
-        scene, camera, controls, composer, spheresRef.current, nodesRef.current, k, kRep, centralNodeIndex, angularSpeed, {
+        scene, camera, controls, composer, spheres, meshAssignedNodes, k, kRep, centralNodeIndex, angularSpeed, {
           get isCentralDragging() { return isCentralDragging; },
           get outerNodeOffsets() { return outerNodeOffsets; }
         },
-        debugForces // pass debugForces to physics
+        debugForces,
+        showSprings // pass to core
       );
       raycaster = new THREE.Raycaster();
       mouse = new THREE.Vector2();
@@ -227,11 +236,11 @@ const ThreeScene: React.FC = () => {
           }
           // If central node, reset velocity for all nodes; else just the dragged node
           if (mesh === spheresRef.current[0]) {
-            nodesRef.current.forEach((node) => node.velocity.set(0, 0, 0));
+            // nodesRef.current.forEach((node) => node.velocity.set(0, 0, 0));
             isCentralDragging = false;
           } else {
-            const node = nodesRef.current.find((n) => n.mesh === mesh);
-            if (node) node.velocity.set(0, 0, 0);
+            // const node = nodesRef.current.find((n) => n.mesh === mesh);
+            // if (node) node.velocity.set(0, 0, 0);
           }
           prevCentralPos = null;
         });
@@ -247,7 +256,7 @@ const ThreeScene: React.FC = () => {
         }
       };
     }
-  }, [mode, resetKey, debugForces]); // add debugForces to deps
+  }, [mode, resetKey, debugForces, nodeCount, attributeCount, showSprings]); // add showSprings to deps
 
   // --- Live property updates (no reset) ---
   // Node color
@@ -299,27 +308,6 @@ const ThreeScene: React.FC = () => {
   return (
     <>
       <div ref={mountRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }} />
-      {/* Mode toggle button */}
-      <div style={{ position: 'fixed', top: 24, right: 32, zIndex: 10001 }}>
-        <button
-          onClick={() => setMode(mode === 'night' ? 'day' : 'night')}
-          style={{
-            background: mode === 'night' ? '#181c2a' : '#fff',
-            color: mode === 'night' ? '#fff' : '#181c2a',
-            border: '2px solid #c300ff',
-            borderRadius: 8,
-            padding: '8px 18px',
-            fontWeight: 'bold',
-            fontSize: '1rem',
-            boxShadow: '0 2px 12px #c300ff44',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            marginBottom: 12,
-          }}
-        >
-          {mode === 'night' ? '🌙' : '☀️'}
-        </button>
-      </div>
       {/* Neomorphic Controls Panel */}
       <ControlsPanel
         nodeOptions={nodeOptions}
@@ -363,10 +351,16 @@ const ThreeScene: React.FC = () => {
           }
         }}
         mode={mode}
+        setMode={setMode}
         randomNodeDistribution={randomNodeDistribution}
         setRandomNodeDistribution={setRandomNodeDistribution}
         debugForces={debugForces}
         setDebugForces={setDebugForces}
+        showSprings={showSprings}
+        setShowSprings={setShowSprings}
+        nodes={nodes}
+        selectedNodeIndex={selectedNodeIndex}
+        setNodes={setNodes}
       />
     </>
   );
